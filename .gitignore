@@ -1,0 +1,6 @@
+node_modules/
+.prompt.md
+.run-claude.sh
+*.log
+.DS_Store
+npm-debug.log*
