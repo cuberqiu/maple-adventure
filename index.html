@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>翠谷奇谭 · Tale of the Verdant Vale</title>
+  <meta name="description" content="原创横版动作冒险网页游戏：探索翠谷、打怪升级、击败磐苔巨像。" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='18' r='12' fill='%237ecb8f'/%3E%3Cellipse cx='20' cy='8' rx='7' ry='4' fill='%234e9958' transform='rotate(-25 20 8)'/%3E%3Ccircle cx='12' cy='16' r='2.4' fill='%233d3d3d'/%3E%3Ccircle cx='20' cy='16' r='2.4' fill='%233d3d3d'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="stage">
+      <canvas id="game" width="960" height="540"></canvas>
+
+      <!-- ===== HUD ===== -->
+      <div id="hud" class="hidden">
+        <div class="hud-left">
+          <div class="bar-row">
+            <span class="lv-badge">Lv<b id="hud-level">1</b></span>
+            <div class="bar hp"><div id="hp-fill" class="fill"></div><span id="hp-text" class="bar-text"></span></div>
+          </div>
+          <div class="bar-row">
+            <span class="mp-badge">MP</span>
+            <div class="bar mp"><div id="mp-fill" class="fill"></div><span id="mp-text" class="bar-text"></span></div>
+          </div>
+          <div class="bar-row slim">
+            <span class="exp-badge">EXP</span>
+            <div class="bar exp"><div id="exp-fill" class="fill"></div><span id="exp-text" class="bar-text"></span></div>
+          </div>
+          <div class="hud-coins">
+            <svg viewBox="0 0 16 16" class="coin-icon" aria-hidden="true"><path d="M8 1 C11 5 13 7 13 10 a5 5 0 0 1 -10 0 C3 7 5 5 8 1 Z" fill="#8fe388" stroke="#4e9958" stroke-width="1"/><ellipse cx="6" cy="9" rx="1.4" ry="2" fill="rgba(255,255,255,.8)"/></svg>
+            <b id="hud-coins">0</b><span class="coin-unit">露珠</span>
+            <span id="hud-map" class="hud-map"></span>
+          </div>
+        </div>
+        <div class="hud-right">
+          <button id="btn-pause" class="btn tiny" title="暂停 (Esc)">☰</button>
+        </div>
+        <!-- 技能栏 -->
+        <div id="skillbar">
+          <div class="slot" id="slot-attack" title="普通攻击">
+            <svg viewBox="0 0 24 24" class="icon"><path d="M4 20 L14 10 M14 10 L19 3 L21 5 L14 10 M8 16 l2 2 M5 21 l-2 -2" stroke="#8a6a45" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>
+            <span class="key">J</span><div class="cd"></div><span class="cd-num"></span>
+          </div>
+          <div class="slot" id="slot-s1" title="翠风斩：12 MP">
+            <svg viewBox="0 0 24 24" class="icon"><path d="M3 8 q8 -4 16 0 M3 13 q8 -4 16 0 M3 18 q8 -4 16 0" stroke="#4e9958" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>
+            <span class="key">U/1</span><div class="cd"></div><span class="cd-num"></span>
+          </div>
+          <div class="slot" id="slot-s2" title="晨露祝福：20 MP">
+            <svg viewBox="0 0 24 24" class="icon"><path d="M12 3 C15 8 17 10 17 14 a5 5 0 0 1 -10 0 C7 10 9 8 12 3 Z" fill="#8fbfff" stroke="#5a8fd9" stroke-width="1.5"/></svg>
+            <span class="key">I/2</span><div class="cd"></div><span class="cd-num"></span>
+          </div>
+          <div class="slot" id="slot-php" title="露水药剂">
+            <svg viewBox="0 0 24 24" class="icon"><path d="M9 3 h6 v3 l3 5 v8 a2 2 0 0 1 -2 2 h-8 a2 2 0 0 1 -2 -2 v-8 l3 -5 Z" fill="#ff8f8f" stroke="#d96a6a" stroke-width="1.5"/><rect x="9" y="3" width="6" height="2.4" fill="#d9e8f2"/></svg>
+            <span class="key">H/3</span><span class="count" id="php-count">×0</span>
+          </div>
+          <div class="slot" id="slot-pmp" title="月尘药剂">
+            <svg viewBox="0 0 24 24" class="icon"><path d="M9 3 h6 v3 l3 5 v8 a2 2 0 0 1 -2 2 h-8 a2 2 0 0 1 -2 -2 v-8 l3 -5 Z" fill="#8fbfff" stroke="#6a9bd9" stroke-width="1.5"/><rect x="9" y="3" width="6" height="2.4" fill="#d9e8f2"/></svg>
+            <span class="key">G/4</span><span class="count" id="pmp-count">×0</span>
+          </div>
+        </div>
+        <!-- 交互提示 -->
+        <div id="interact-hint" class="hidden"></div>
+      </div>
+
+      <!-- ===== 标题画面 ===== -->
+      <div id="title-screen">
+        <div class="title-sky">
+          <div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div>
+          <div class="leaf l1">🍃</div><div class="leaf l2">🌿</div><div class="leaf l3">🍃</div>
+        </div>
+        <h1 class="game-title">翠谷奇谭</h1>
+        <p class="game-subtitle">Tale of the Verdant Vale</p>
+        <p class="game-tagline">一段小小的横版冒险：练级、捡露珠、讨伐磐苔巨像。</p>
+        <div class="title-buttons">
+          <button id="btn-new" class="btn primary big">🌱 新的冒险</button>
+          <button id="btn-continue" class="btn big">📖 继续冒险</button>
+        </div>
+        <div id="confirm-new" class="panel confirm hidden">
+          <p>已有存档，开始新的冒险会<b>覆盖</b>它。确定吗？</p>
+          <div class="row">
+            <button id="btn-confirm-new" class="btn danger">覆盖并重开</button>
+            <button id="btn-cancel-new" class="btn">再想想</button>
+          </div>
+        </div>
+        <details class="help-box">
+          <summary>🎮 操作说明</summary>
+          <div class="help-grid">
+            <span class="k">←→ / A D</span><span>移动</span>
+            <span class="k">↑ / W</span><span>攀爬绳索 · 与梯子交互</span>
+            <span class="k">空格 / K</span><span>跳跃（下+跳 = 落下平台）</span>
+            <span class="k">J / Z</span><span>普通攻击</span>
+            <span class="k">U 或 1</span><span>技能一「翠风斩」（12 MP）</span>
+            <span class="k">I 或 2</span><span>技能二「晨露祝福」（20 MP）</span>
+            <span class="k">H 或 3</span><span>喝生命药（优先）</span>
+            <span class="k">G 或 4</span><span>喝魔力药</span>
+            <span class="k">Enter</span><span>对话 / 进传送门 / 存档水晶</span>
+            <span class="k">Tab 或 B</span><span>背包</span>
+            <span class="k">Esc / P</span><span>暂停</span>
+            <span class="k">M</span><span>静音开关</span>
+          </div>
+          <p class="help-note">📱 触屏设备会自动显示虚拟按键：左下方向键、右下跳跃 / 攻击 / 技能 / 喝药 / 交谈。</p>
+        </details>
+        <label class="mute-row"><input type="checkbox" id="mute-check" /> 静音（音效为 Web Audio 现场合成）</label>
+        <p class="disclaimer">本游戏为独立原创作品，灵感来自经典横版动作冒险，与任何商业游戏无关。<br>所有画面、角色、怪物、地图、音效均由代码程序化生成。</p>
+      </div>
+
+      <!-- ===== 对话 ===== -->
+      <div id="dialogue" class="panel overlay-bottom hidden">
+        <div class="dialogue-name" id="dialogue-name"></div>
+        <p id="dialogue-text"></p>
+        <span class="dialogue-hint">Enter / 点击 继续 ▸</span>
+      </div>
+
+      <!-- ===== 商店 ===== -->
+      <div id="shop-panel" class="panel modal hidden">
+        <h2>🧺 铃兰的杂货铺</h2>
+        <p class="shop-balance">持有露珠：<b id="shop-coins">0</b></p>
+        <div id="shop-list"></div>
+        <div class="row right"><button id="shop-close" class="btn">关闭 (Enter)</button></div>
+      </div>
+
+      <!-- ===== 背包 ===== -->
+      <div id="inv-panel" class="panel modal hidden">
+        <h2>🎒 背包</h2>
+        <p class="shop-balance">持有露珠：<b id="inv-coins">0</b></p>
+        <div id="inv-list"></div>
+        <div class="row right"><button id="inv-close" class="btn">收起 (Tab)</button></div>
+      </div>
+
+      <!-- ===== 暂停 ===== -->
+      <div id="pause-panel" class="panel modal hidden">
+        <h2>⏸ 暂停中</h2>
+        <div class="row col">
+          <button id="btn-resume" class="btn primary">继续冒险</button>
+          <button id="btn-mute-pause" class="btn">音效</button>
+          <button id="btn-quit" class="btn">保存并回标题</button>
+        </div>
+      </div>
+
+      <!-- ===== 死亡 ===== -->
+      <div id="death-overlay" class="fullscreen-fx hidden">
+        <div class="fx-inner">
+          <h2>你倒下了……</h2>
+          <p>小镇的晨露会把你唤醒（只掉一点露珠，等级和装备都还在）。</p>
+        </div>
+      </div>
+
+      <!-- ===== 胜利 ===== -->
+      <div id="victory-overlay" class="fullscreen-fx hidden">
+        <div class="fx-inner victory">
+          <h2>🏆 胜利！</h2>
+          <p>磐苔巨像轰然倒下，幽苔洞窟恢复了宁静。</p>
+          <p class="victory-drops">掉落了大量露珠与药剂，记得捡起来！</p>
+          <button id="victory-continue" class="btn primary big">继续冒险</button>
+        </div>
+      </div>
+
+      <!-- ===== 升级横幅 ===== -->
+      <div id="levelup-banner" class="hidden"><span class="lv-num">1</span><span class="lv-text">级！属性提升，状态回满</span></div>
+
+      <!-- ===== 提示气泡 ===== -->
+      <div id="toasts"></div>
+    </div>
+
+    <!-- ===== 触控 ===== -->
+    <div id="touch" class="hidden"></div>
+
+    <div id="fade"></div>
+  </div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
