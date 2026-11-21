@@ -480,6 +480,7 @@ function render() {
 
   // 世界（平移后）
   ctx.save();
+  // R-15: shake stays off (no camera shake offset)
   ctx.translate(-Math.round(game.cam.x), -Math.round(game.cam.y));
   drawMap(ctx, game.frame);
   drawDrops(ctx, game.frame);
