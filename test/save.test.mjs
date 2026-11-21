@@ -23,9 +23,9 @@ function makeRun() {
   };
 }
 
-test('存档键带游戏专属前缀', () => {
-  assert.ok(SAVE_KEY.startsWith('cuigu-qitan'));
-  assert.equal(SAVE_VERSION, 1);
+test('存档键为 v2，带游戏专属前缀', () => {
+  assert.equal(SAVE_KEY, 'cuigu-qitan-save-v2');
+  assert.equal(SAVE_VERSION, 2);
 });
 
 test('序列化 → 反序列化 往返一致', () => {
