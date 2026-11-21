@@ -4,3 +4,8 @@ node_modules/
 *.log
 .DS_Store
 npm-debug.log*
+
+# local handoff materials, do not commit
+_handoff/
+cuigu-q-prompt.md
+*.tgz
