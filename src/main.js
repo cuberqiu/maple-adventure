@@ -1,6 +1,7 @@
-// 《翠谷奇谭》主入口：启动、游戏主循环、交互、场景与存档调度
+// 《翠谷奇谭》主入口：启动、主循环、交互、场景与存档调度。
+// 480×270 位图舞台，平滑缩放；触控层是 #stage 的兄弟节点，在舞台外。
 import { game, loadMap, uiLocked, VIEW_W, VIEW_H, STEP_MS } from './game/state.js';
-import { updatePlayer } from './game/player.js';
+import { updatePlayer, respawnPlayer } from './game/player.js';
 import { updateMonsters } from './game/monsters.js';
 import { updateWorld } from './game/world.js';
 import { spawnParticles } from './game/actions.js';
@@ -8,33 +9,51 @@ import { createKeyboardInput } from './core/input.js';
 import * as audio from './core/audio.js';
 import { on, emit } from './core/bus.js';
 import { hasSave, loadSave, writeSave, loadMuted, writeMuted } from './core/saveStore.js';
+import { loadAssets } from './core/assets.js';
+import {
+  computeLayout, computeTouchLayout,
+  HUD_COMPACT_MAX_STAGE_W, BOSS_COMPACT_MAX_STAGE_W, BOSS_COMPACT_MAX_STAGE_H,
+} from './core/layout.js';
 import { createPlayer } from './logic/entities.js';
 import { rectsOverlap } from './logic/physics.js';
 import { drawBackground } from './render/background.js';
 import { drawMap } from './render/draw.js';
 import { drawPlayer, drawMonster, drawDrops, drawProjectiles } from './render/sprites.js';
-import { drawParticles, drawDmgNums, drawCaveLight } from './render/effects.js';
+import { drawParticles, drawDmgNums, drawCaveLight, drawBossBar, livingBoss, BOSS_BAR_H, BOSS_BAR_Y, BOSS_BAR_Y_COMPACT } from './render/effects.js';
 import { showHud, updateHud } from './render/hud.js';
 import * as ui from './render/ui.js';
-import { setupTouch } from './render/touch.js';
+import { setupTouch, detectTouch } from './render/touch.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const DPR = Math.min(window.devicePixelRatio || 1, 2);
-
+let backing = 2;
 let autosaveTimer = 0;
+let assetsReady = false;
+let curStageH = 270;
+let curTouchH = 0;
+let bossCompact = false;
+
+const $ = (id) => document.getElementById(id);
+
+// 铃兰战后对白（bossDefeated 后切换到这一段，见 P1-03）
+const POST_BOSS_LINES = [
+  '巨像倒下了，幽苔洞窟终于恢复了宁静。',
+  '你为露水镇做了一件大事。这些药剂你拿着，路上还要当心那些小怪。',
+];
+
+function isTouchMode() {
+  return document.body.classList.contains('touch');
+}
 
 // ===================== 启动 =====================
 function boot() {
-  canvas.width = VIEW_W * DPR;
-  canvas.height = VIEW_H * DPR;
+  resize();
 
   game.input = createKeyboardInput(window);
   setupTouch(game.input);
 
   audio.setMuted(loadMuted());
-
-  // 首次手势解锁音频
+  syncMuteUI();
   const unlock = () => audio.unlock();
   window.addEventListener('pointerdown', unlock, { once: false });
   window.addEventListener('keydown', unlock, { once: false });
@@ -44,25 +63,55 @@ function boot() {
   bindGlobalKeys();
   bindGameButtons();
 
+  startLoading();
   requestAnimationFrame(loop);
 }
 
-// 逻辑层事件 → 表现层
 function bindBus() {
   on('sfx', (name) => audio.play(name));
   on('toast', (msg) => ui.toast(msg));
   on('save', () => saveRun());
-  on('playerDied', () => ui.showDeath());
+  on('playerDied', () => ui.showDeath(() => respawnPlayer()));
   on('respawned', () => {
     ui.hideDeath();
     saveRun();
   });
 }
 
+// ===================== 素材加载 =====================
+function startLoading() {
+  assetsReady = false;
+  $('loading').classList.remove('hidden');
+  $('load-error').classList.add('hidden');
+  $('btn-continue').disabled = true;
+  $('btn-new').disabled = true;
+  loadAssets((ratio) => {
+    $('load-fill').style.width = `${Math.round(ratio * 100)}%`;
+    $('load-text').textContent = `${Math.round(ratio * 100)}%`;
+  }).then((failedCount) => {
+    $('loading').classList.add('hidden');
+    if (failedCount > 0) {
+      // 缺图可重试的错误态（P2-14），正式包不回退到代码绘制
+      $('load-error').classList.remove('hidden');
+      return;
+    }
+    $('load-error').classList.add('hidden');
+    assetsReady = true;
+    refreshTitle();
+  });
+}
+
+// ===================== 标题画面 =====================
+function refreshTitle() {
+  const has = hasSave();
+  // 无 v2 存档时隐藏「继续旅程」（P1-13）
+  $('btn-continue').classList.toggle('hidden', !has);
+  $('btn-continue').disabled = !assetsReady;
+  $('btn-new').disabled = !assetsReady;
+}
+
 function bindTitleScreen() {
-  const btnContinue = document.getElementById('btn-continue');
-  btnContinue.disabled = !hasSave();
-  btnContinue.addEventListener('click', () => {
+  $('btn-continue').addEventListener('click', () => {
     if (game.scene === 'playing') return;
     const run = loadSave();
     if (!run) {
@@ -71,41 +120,40 @@ function bindTitleScreen() {
     }
     startRun(run);
   });
-  document.getElementById('btn-new').addEventListener('click', () => {
+  $('btn-new').addEventListener('click', () => {
     if (game.scene === 'playing') return;
     if (hasSave()) {
-      // 新游戏要确认覆盖
-      document.getElementById('confirm-new').classList.remove('hidden');
+      $('confirm-new').classList.remove('hidden');
+      ui.syncScrim();
     } else {
       startNewRun();
     }
   });
-  document.getElementById('btn-confirm-new').addEventListener('click', () => {
-    document.getElementById('confirm-new').classList.add('hidden');
+  $('btn-confirm-new').addEventListener('click', () => {
+    $('confirm-new').classList.add('hidden');
+    ui.syncScrim();
     startNewRun();
   });
-  document.getElementById('btn-cancel-new').addEventListener('click', () => {
-    document.getElementById('confirm-new').classList.add('hidden');
+  $('btn-cancel-new').addEventListener('click', () => {
+    $('confirm-new').classList.add('hidden');
+    ui.syncScrim();
   });
-  const muteCheck = document.getElementById('mute-check');
-  muteCheck.checked = audio.isMuted();
-  muteCheck.addEventListener('change', () => {
-    audio.setMuted(muteCheck.checked);
-    writeMuted(muteCheck.checked);
-  });
+  $('btn-retry').addEventListener('click', () => startLoading());
 }
 
 // 全局按键（UI 层面）
 function bindGlobalKeys() {
   window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyM') {
+      toggleMute();
+      return;
+    }
     if (game.scene !== 'playing') return;
     const inp = game.input;
-    // 对话推进
     if (game.dialogue) {
       if (inp.tapped('interact') || inp.tapped('attack') || inp.tapped('jump')) {
         e.preventDefault();
         ui.advanceDialogue();
-        // 清掉本帧按键标记，避免对话刚关闭时同一次按键又触发交互
         inp.endStep();
       }
       return;
@@ -122,35 +170,40 @@ function bindGlobalKeys() {
     if (inp.tapped('inventory') && !game.paused && !game.victoryShown) {
       ui.toggleInventory();
     }
-    if (inp.tapped('mute')) {
-      toggleMute();
-    }
   });
 }
 
-// 游戏内按钮（HUD 暂停键 / 面板关闭 / 对话点击推进）
+// 游戏内按钮
 function bindGameButtons() {
-  document.getElementById('btn-pause').addEventListener('click', () => {
+  $('btn-pause').addEventListener('click', () => {
     if (game.scene !== 'playing') return;
     if (game.dialogue || game.shopOpen || game.invOpen || game.victoryShown) return;
     if (game.paused) resumeGame();
     else pauseGame();
   });
-  document.getElementById('shop-close').addEventListener('click', () => ui.closeShop());
-  document.getElementById('inv-close').addEventListener('click', () => ui.toggleInventory(false));
-  document.getElementById('dialogue').addEventListener('click', () => {
-    ui.advanceDialogue();
-    game.input.endStep();
+  $('btn-bag').addEventListener('click', () => {
+    if (game.scene !== 'playing' || game.dialogue || game.shopOpen || game.paused) return;
+    ui.toggleInventory();
   });
+  $('btn-mute').addEventListener('click', () => toggleMute());
+  $('shop-close').addEventListener('click', () => ui.closeShop());
+  $('inv-close').addEventListener('click', () => ui.toggleInventory(false));
+  $('dialogue').addEventListener('click', () => {
+    if (game.dialogue) {
+      ui.advanceDialogue();
+      game.input.endStep();
+    }
+  });
+  $('levelup-close').addEventListener('click', () => ui.hideLevelUp());
+
   // 鼠标点击技能栏也能放技能 / 喝药
   const clickSlot = (id, action) => {
-    document.getElementById(id).addEventListener('click', () => {
+    $(id).addEventListener('click', () => {
       if (game.scene !== 'playing' || uiLocked()) return;
       game.input.press(action);
       game.input.release(action);
     });
   };
-  clickSlot('slot-attack', 'attack');
   clickSlot('slot-s1', 'skill1');
   clickSlot('slot-s2', 'skill2');
   clickSlot('slot-php', 'potionSmart');
@@ -160,8 +213,17 @@ function bindGameButtons() {
 function toggleMute() {
   audio.setMuted(!audio.isMuted());
   writeMuted(audio.isMuted());
-  document.getElementById('mute-check').checked = audio.isMuted();
-  ui.toast(audio.isMuted() ? '音效已关闭' : '音效已开启');
+  syncMuteUI();
+  ui.toast(audio.isMuted() ? '声音已关闭' : '声音已开启');
+}
+
+function syncMuteUI() {
+  const muted = audio.isMuted();
+  const btn = $('btn-mute');
+  btn.classList.toggle('muted', muted);
+  btn.setAttribute('aria-pressed', muted ? 'true' : 'false');
+  btn.setAttribute('aria-label', muted ? '声音关' : '声音开');
+  $('btn-mute-pause').textContent = muted ? '声音：关' : '声音：开';
 }
 
 // ===================== 场景 =====================
@@ -170,8 +232,9 @@ function startNewRun() {
   game.player = p;
   enterPlay();
   loadMap('town', 560, 560);
+  game.greet = 480; // 开场引导约 8 秒，只在露水镇
   saveRun();
-  ui.toast('欢迎来到翠谷！先和镇上的铃兰聊聊吧。');
+  ui.toast('欢迎来到翠谷！先和镇上的铃兰聊聊吧。', 'info', 1200);
 }
 
 function startRun(run) {
@@ -184,7 +247,7 @@ function startRun(run) {
   game.player = p;
   enterPlay();
   loadMap(run.mapId, run.x, run.y);
-  ui.toast(`欢迎回来，Lv.${p.stats.level} 的冒险者！`);
+  ui.toast(`欢迎回来，Lv.${p.stats.level} 的冒险者！`, 'info', 1200);
 }
 
 function enterPlay() {
@@ -194,8 +257,10 @@ function enterPlay() {
   game.shopOpen = false;
   game.invOpen = false;
   game.victoryShown = false;
-  document.getElementById('title-screen').classList.add('hidden');
+  game.levelUpOpen = false;
+  $('title-card').classList.add('hidden');
   showHud(true);
+  applyTouchState();
 }
 
 function pauseGame() {
@@ -210,12 +275,14 @@ function resumeGame() {
 
 function quitToTitle() {
   saveRun();
-  resumeGame();
+  game.paused = false;
+  ui.hidePause();
   game.scene = 'title';
   game.player = null;
   showHud(false);
-  document.getElementById('title-screen').classList.remove('hidden');
-  document.getElementById('btn-continue').disabled = !hasSave();
+  $('title-card').classList.remove('hidden');
+  refreshTitle();
+  applyTouchState();
   ui.toast('旅途已保存。');
 }
 
@@ -245,7 +312,9 @@ function step() {
   }
   game.frame++;
 
-  // Boss 击杀 → 胜利结算
+  if (game.greet > 0) game.greet--;
+
+  // Boss 击杀 → 胜利结算卡
   if (game.bossJustDied) {
     game.bossJustDied = false;
     ui.showVictory(() => {
@@ -254,11 +323,11 @@ function step() {
     });
   }
 
-  // 升级横幅
+  // 升级卡（P1-04）
   if (game.pendingLevelUps > 0) {
     const p = game.player;
     game.pendingLevelUps = 0;
-    ui.showLevelUp(p.stats.level);
+    ui.showLevelUp(p.stats);
     emit('sfx', 'levelup');
     spawnParticles(p.x + p.w / 2, p.y + p.h / 2, 18, ['#ffe066', '#fff3c4', '#8fe388'], { lift: 2, gravity: -0.01 });
     saveRun();
@@ -269,13 +338,11 @@ function step() {
     updateMonsters();
     updateWorld();
     handleInteract();
-    // 自动存档（每 30 秒）
     if (++autosaveTimer >= 1800) {
       autosaveTimer = 0;
       saveRun();
     }
   } else {
-    // UI 打开时镜头仍跟随
     updateWorld();
   }
   game.input.endStep();
@@ -295,7 +362,7 @@ function handleInteract() {
   }
   if (!target) {
     for (const npc of map.npcs) {
-      if (Math.abs(p.x + p.w / 2 - (npc.x)) < 64) {
+      if (Math.abs(p.x + p.w / 2 - npc.x) < 64) {
         target = { kind: 'npc', data: npc };
         break;
       }
@@ -314,6 +381,14 @@ function handleInteract() {
   }
 
   game.interactTarget = target;
+
+  // 开场引导（只在露水镇，切图已清空 greet）
+  if (game.greet > 0 && !target) {
+    ui.interactHint(isTouchMode()
+      ? '往右走，光门通往翠叶林地（点「互动」进入）'
+      : '往右走，光门通往翠叶林地（按 Enter 进入）');
+    return;
+  }
   ui.interactHint(target ? hintFor(target) : null);
 
   if (target && game.input.tapped('interact')) {
@@ -322,11 +397,12 @@ function handleInteract() {
 }
 
 function hintFor(t) {
+  const touch = isTouchMode();
   switch (t.kind) {
-    case 'portal': return `按 Enter 前往「${t.data.label}」`;
-    case 'npc': return `按 Enter 和${t.data.name}交谈`;
-    case 'sign': return '按 Enter 阅读告示';
-    case 'crystal': return '按 Enter 记录旅途（存档）';
+    case 'portal': return touch ? `点「互动」前往「${t.data.label}」` : `按 Enter 前往「${t.data.label}」`;
+    case 'npc': return touch ? `点「互动」和${t.data.name}交谈` : `按 Enter 和${t.data.name}交谈`;
+    case 'sign': return touch ? '点「互动」阅读告示' : '按 Enter 阅读告示';
+    case 'crystal': return touch ? '点「互动」记录旅途（存档）' : '按 Enter 记录旅途（存档）';
     default: return '';
   }
 }
@@ -344,8 +420,18 @@ function doInteract(t) {
     }
     case 'npc': {
       const npc = t.data;
-      ui.showDialogue(`${npc.name}（${npc.role}）`, npc.lines, () => {
-        if (npc.shop) ui.openShop();
+      const lines = npc.shop && p.bossDefeated ? POST_BOSS_LINES : npc.lines;
+      ui.showDialogue(npc.name, lines, {
+        portrait: true,
+        onEnd: () => {
+          if (npc.shop) {
+            // R-07：对白结束后先问「看看货」，不直接开店
+            ui.showChoice('铃兰', '要来点补给吗？', [
+              { label: '看看货', primary: true, onClick: () => ui.openShop() },
+              { label: '下次再说', onClick: () => {} },
+            ]);
+          }
+        },
       });
       break;
     }
@@ -365,9 +451,8 @@ function doInteract(t) {
   }
 }
 
-// 过场黑幕
 function fadeOutIn(mid) {
-  const fade = document.getElementById('fade');
+  const fade = $('fade');
   fade.classList.add('on');
   setTimeout(() => {
     mid();
@@ -377,23 +462,27 @@ function fadeOutIn(mid) {
 
 // ===================== 渲染 =====================
 function render() {
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.setTransform(backing, 0, 0, backing, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
   ctx.clearRect(0, 0, VIEW_W, VIEW_H);
 
   if (!game.map || !game.player) {
-    // 标题界面背景：柔和渐变
     const g = ctx.createLinearGradient(0, 0, 0, VIEW_H);
-    g.addColorStop(0, '#bfe6f2');
-    g.addColorStop(1, '#e8f7d9');
+    g.addColorStop(0, '#9ED8F5');
+    g.addColorStop(1, '#EAF6E0');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     return;
   }
 
-  ctx.save();
-  ctx.translate(-Math.round(game.cam.x), -Math.round(game.cam.y));
+  // 视差背景（屏幕空间）
+  drawBackground(ctx, game.map, game.cam);
 
-  drawBackground(ctx, game.map, game.cam, game.frame);
+  // 世界（平移后）
+  ctx.save();
+  // R-15: shake stays off (no camera shake offset)
+  ctx.translate(-Math.round(game.cam.x), -Math.round(game.cam.y));
   drawMap(ctx, game.frame);
   drawDrops(ctx, game.frame);
   for (const m of game.monsters) drawMonster(ctx, m, game.frame);
@@ -402,9 +491,75 @@ function render() {
   drawParticles(ctx);
   drawDmgNums(ctx);
   drawCaveLight(ctx);
-
   ctx.restore();
+
+  // Boss 条（屏幕空间，顶部居中）
+  drawBossBar(ctx, bossCompact);
+  // R-16：有 Boss 条时把 toast 放到条下方，避免挡住名牌和数字
+  syncBossToasts(bossCompact);
+
   updateHud();
+  ui.syncScrim();
 }
+
+
+function syncBossToasts(compact) {
+  const box = $('toasts');
+  if (!box) return;
+  const hasBoss = !!livingBoss();
+  document.body.classList.toggle('boss-bar', hasBoss);
+  if (!hasBoss) {
+    box.style.top = '';
+    return;
+  }
+  const scale = curStageH / VIEW_H;
+  const barBottom = (compact ? BOSS_BAR_Y_COMPACT : BOSS_BAR_Y) + BOSS_BAR_H;
+  box.style.top = `${Math.round(barBottom * scale + 8)}px`;
+}
+
+// ===================== 响应式（设计系统 §9） =====================
+function resize() {
+  const hasTouch = detectTouch();
+  document.body.classList.toggle('touch', hasTouch);
+  const layout = computeLayout(window.innerWidth, window.innerHeight, hasTouch);
+  curTouchH = layout.touchH;
+  curStageH = layout.stageH;
+
+  const stage = $('stage');
+  stage.style.width = `${layout.stageW}px`;
+  stage.style.height = `${layout.stageH}px`;
+
+  const dpr = window.devicePixelRatio || 1;
+  backing = Math.max(2, Math.min(4, Math.ceil(dpr)));
+  canvas.width = Math.round(VIEW_W * backing);
+  canvas.height = Math.round(VIEW_H * backing);
+
+  // 触控键布局：单行 / 网格（R-01/R-02/R-06/R-10）
+  const touch = computeTouchLayout(window.innerWidth, window.innerHeight, layout);
+  document.documentElement.style.setProperty('--tkey', `${touch.key}px`);
+  document.body.classList.toggle('touch-row', hasTouch && touch.mode === 'row');
+  document.body.classList.toggle('touch-grid', hasTouch && touch.mode === 'grid');
+  // 窄舞台启用紧凑 HUD（R-03）
+  document.body.classList.toggle('hud-compact', layout.stageW <= HUD_COMPACT_MAX_STAGE_W);
+  // 窄横屏缩短 Boss 条，避开右上三钮（R-04）
+  bossCompact = layout.stageW < BOSS_COMPACT_MAX_STAGE_W || layout.stageH < BOSS_COMPACT_MAX_STAGE_H;
+  document.body.classList.toggle('side-touch', layout.sideTouch);
+  document.body.classList.toggle('stage-scroll', layout.scroll);
+  applyTouchState();
+}
+
+function applyTouchState() {
+  const hasTouch = detectTouch();
+  const visible = hasTouch && game.scene === 'playing';
+  document.body.classList.toggle('playing', game.scene === 'playing');
+  const touchEl = $('touch');
+  touchEl.style.height = visible ? `${curTouchH}px` : '0px';
+  document.documentElement.style.setProperty('--touch-h', visible ? `${curTouchH}px` : '0px');
+}
+
+window.addEventListener('resize', resize);
+window.addEventListener('beforeunload', () => {
+  if (game.scene === 'playing') saveRun();
+});
 
 boot();

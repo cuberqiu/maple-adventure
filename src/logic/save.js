@@ -4,9 +4,11 @@ import { createStats, MAX_LEVEL } from './leveling.js';
 import { createInventory, ITEM_DEFS } from './inventory.js';
 import { clamp } from './util.js';
 
-export const SAVE_KEY = 'cuigu-qitan-save-v1';
+// 存档 v2：改用 480×270 位图路线后，旧 960×540 代码绘制档（cuigu-qitan-save-v1）
+// 视为旧档，不读取、不迁移、不覆盖、不删除。也不读取另一游戏的 rongya-valley-save-v1。
+export const SAVE_KEY = 'cuigu-qitan-save-v2';
 export const MUTED_KEY = 'cuigu-qitan-muted';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 function clampInt(v, lo, hi, fallback = lo) {
   const n = Math.floor(Number(v));

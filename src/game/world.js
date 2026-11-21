@@ -3,6 +3,7 @@ import { game, centerCam } from './state.js';
 import { damagePlayer, hurtMonster } from './actions.js';
 import { rectsOverlap, moveAndCollide, GRAVITY, TERMINAL } from '../logic/physics.js';
 import { clamp, dec } from '../logic/util.js';
+import { prefersReducedMotion } from '../core/motion.js';
 
 export function updateWorld() {
   updateProjectiles();
@@ -91,9 +92,12 @@ function updateParticles() {
 }
 
 function updateDmgNums() {
+  const reduced = prefersReducedMotion();
   for (const n of game.dmgNums) {
-    n.y += n.vy;
-    n.vy *= 0.96;
+    if (!reduced) {
+      n.y += n.vy;
+      n.vy *= 0.96;
+    }
     dec(n, 'life');
   }
   game.dmgNums = game.dmgNums.filter((n) => n.life > 0);

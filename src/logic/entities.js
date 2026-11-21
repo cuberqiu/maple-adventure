@@ -21,6 +21,7 @@ export function createPlayer(x, y) {
     skillCds: createSkillState(),
     attackTimer: 0,
     attackCd: 0,
+    castTimer: 0, // 施法动画帧（翠风斩 / 晨露祝福共用）
     hitSet: new Set(),
     invuln: 0,
     flash: 0,

@@ -1,4 +1,4 @@
-// HUD（DOM）：血条/蓝条/经验条、等级、露珠、技能栏冷却
+// HUD（DOM）：血条/蓝条/经验条、等级徽章、露珠、地图名、技能冷却（圆锥扫光）、药剂数量。
 import { game } from '../game/state.js';
 import { SKILL_DEFS } from '../logic/skills.js';
 import { countItem, HP_POTION, MP_POTION } from '../logic/inventory.js';
@@ -16,30 +16,29 @@ function initRefs() {
     expFill: $('exp-fill'), expText: $('exp-text'),
     coins: $('hud-coins'),
     mapName: $('hud-map'),
-    slotAttack: $('slot-attack'),
     slotS1: $('slot-s1'), slotS2: $('slot-s2'),
     slotPhp: $('slot-php'), slotPmp: $('slot-pmp'),
-    phpCount: $('php-count'), pmpCount: $('pmp-count'),
+    phpCount: $('slot-php').querySelector('.count'),
+    pmpCount: $('slot-pmp').querySelector('.count'),
   };
 }
 
 function setBar(fill, text, cur, max, label) {
   const pct = max > 0 ? Math.round((cur / max) * 100) : 0;
   fill.style.width = pct + '%';
-  text.textContent = label ?? `${cur}/${max}`;
+  text.textContent = label ?? `${Math.ceil(cur)}/${max}`;
 }
 
-// 技能槽冷却遮罩 + 数字
+// 技能冷却：圆锥扫光 + 剩余秒数（P2-02）
 function slotCd(slot, remain, total) {
   const cdEl = slot.querySelector('.cd');
   const numEl = slot.querySelector('.cd-num');
   if (remain > 0) {
-    slot.classList.add('cooling');
-    cdEl.style.height = Math.round((remain / total) * 100) + '%';
+    const deg = Math.round((remain / total) * 360);
+    cdEl.style.background = `conic-gradient(rgba(74,46,31,0.7) ${deg}deg, rgba(74,46,31,0.15) ${deg}deg)`;
     numEl.textContent = Math.ceil(remain / 60);
   } else {
-    slot.classList.remove('cooling');
-    cdEl.style.height = '0%';
+    cdEl.style.background = 'none';
     numEl.textContent = '';
   }
 }
@@ -65,12 +64,11 @@ export function updateHud() {
 
   slotCd(refs.slotS1, p.skillCds.galeSlash, SKILL_DEFS.galeSlash.cooldown);
   slotCd(refs.slotS2, p.skillCds.dewBless, SKILL_DEFS.dewBless.cooldown);
-  slotCd(refs.slotAttack, Math.min(p.attackCd, 26), 26);
 
   const php = countItem(p.inv, HP_POTION);
   const pmp = countItem(p.inv, MP_POTION);
-  refs.phpCount.textContent = php > 0 ? `×${php}` : '×0';
-  refs.pmpCount.textContent = pmp > 0 ? `×${pmp}` : '×0';
+  refs.phpCount.textContent = String(php);
+  refs.pmpCount.textContent = String(pmp);
   refs.slotPhp.classList.toggle('empty', php <= 0);
   refs.slotPmp.classList.toggle('empty', pmp <= 0);
 }

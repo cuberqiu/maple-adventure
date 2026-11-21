@@ -22,8 +22,8 @@ export function updatePlayer() {
   const world = game.world;
 
   if (p.dead) {
-    p.deathTimer--;
-    if (p.deathTimer <= 0) respawnPlayer();
+    // 倒地动画播完就停住，等待死亡卡的「醒过来了」按钮（不再自动复活）
+    if (p.deathTimer > 0) p.deathTimer--;
     return;
   }
 
@@ -33,6 +33,7 @@ export function updatePlayer() {
   dec(p, 'hurtTimer');
   dec(p, 'attackTimer');
   dec(p, 'attackCd');
+  dec(p, 'castTimer');
   dec(p, 'dropThrough');
   dec(p, 'coyote');
   if (game.frame % MP_REGEN_FRAMES === 0 && p.stats.mp < p.stats.maxMp) p.stats.mp++;
@@ -162,6 +163,7 @@ function castPlayerSkill(p, id) {
     return;
   }
   castSkill(def, p.stats, p.skillCds);
+  p.castTimer = 12;
   if (id === 'galeSlash') {
     // 翠风斩：向前放出一道风刃
     game.projectiles.push({
@@ -206,7 +208,7 @@ function quickPotion(p, smart) {
 }
 
 // 倒下后在露水镇苏醒：保留等级与背包，只掉一小部分露珠
-function respawnPlayer() {
+export function respawnPlayer() {
   const p = game.player;
   const lost = Math.min(Math.floor(p.inv.coins * 0.1), 500);
   p.inv.coins -= lost;
