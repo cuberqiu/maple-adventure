@@ -10,7 +10,10 @@ import * as audio from './core/audio.js';
 import { on, emit } from './core/bus.js';
 import { hasSave, loadSave, writeSave, loadMuted, writeMuted } from './core/saveStore.js';
 import { loadAssets } from './core/assets.js';
-import { computeLayout } from './core/layout.js';
+import {
+  computeLayout, computeTouchLayout,
+  HUD_COMPACT_MAX_STAGE_W, BOSS_COMPACT_MAX_STAGE_W, BOSS_COMPACT_MAX_STAGE_H,
+} from './core/layout.js';
 import { createPlayer } from './logic/entities.js';
 import { rectsOverlap } from './logic/physics.js';
 import { drawBackground } from './render/background.js';
@@ -27,6 +30,7 @@ let backing = 2;
 let autosaveTimer = 0;
 let assetsReady = false;
 let curTouchH = 0;
+let bossCompact = false;
 
 const $ = (id) => document.getElementById(id);
 
@@ -418,7 +422,15 @@ function doInteract(t) {
       const lines = npc.shop && p.bossDefeated ? POST_BOSS_LINES : npc.lines;
       ui.showDialogue(npc.name, lines, {
         portrait: true,
-        onEnd: () => { if (npc.shop) ui.openShop(); },
+        onEnd: () => {
+          if (npc.shop) {
+            // R-07：对白结束后先问「看看货」，不直接开店
+            ui.showChoice('铃兰', '要来点补给吗？', [
+              { label: '看看货', primary: true, onClick: () => ui.openShop() },
+              { label: '下次再说', onClick: () => {} },
+            ]);
+          }
+        },
       });
       break;
     }
@@ -480,7 +492,7 @@ function render() {
   ctx.restore();
 
   // Boss 条（屏幕空间，顶部居中）
-  drawBossBar(ctx);
+  drawBossBar(ctx, bossCompact);
 
   updateHud();
   ui.syncScrim();
@@ -502,8 +514,15 @@ function resize() {
   canvas.width = Math.round(VIEW_W * backing);
   canvas.height = Math.round(VIEW_H * backing);
 
-  document.body.classList.toggle('touch-compact', hasTouch && layout.touchH > 0 && layout.touchH <= 128);
-  document.body.classList.toggle('touch-emergency', hasTouch && layout.touchH > 0 && layout.touchH <= 56);
+  // 触控键布局：单行 / 网格（R-01/R-02/R-06/R-10）
+  const touch = computeTouchLayout(window.innerWidth, window.innerHeight, layout);
+  document.documentElement.style.setProperty('--tkey', `${touch.key}px`);
+  document.body.classList.toggle('touch-row', hasTouch && touch.mode === 'row');
+  document.body.classList.toggle('touch-grid', hasTouch && touch.mode === 'grid');
+  // 窄舞台启用紧凑 HUD（R-03）
+  document.body.classList.toggle('hud-compact', layout.stageW <= HUD_COMPACT_MAX_STAGE_W);
+  // 窄横屏缩短 Boss 条，避开右上三钮（R-04）
+  bossCompact = layout.stageW < BOSS_COMPACT_MAX_STAGE_W || layout.stageH < BOSS_COMPACT_MAX_STAGE_H;
   document.body.classList.toggle('side-touch', layout.sideTouch);
   document.body.classList.toggle('stage-scroll', layout.scroll);
   applyTouchState();

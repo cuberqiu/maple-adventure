@@ -11,8 +11,10 @@ const $ = (id) => document.getElementById(id);
 export function syncScrim() {
   const on =
     game.shopOpen || game.invOpen || game.paused || !!game.dialogue ||
-    game.levelUpOpen || game.victoryShown || !!game.player?.dead;
+    game.choiceOpen || game.levelUpOpen || game.victoryShown || !!game.player?.dead;
   $('scrim').classList.toggle('show', on);
+  // 模态打开时隐藏舞台内的互动提示（R-13）
+  if (on) interactHint(null);
 }
 
 // ---------- 提示气泡 ----------
@@ -70,6 +72,34 @@ export function closeDialogue() {
   if (d?.onEnd) d.onEnd();
 }
 
+// ---------- 对话后的选择卡（R-07：铃兰先问「看看货」再开店） ----------
+export function showChoice(title, text, choices) {
+  game.choiceOpen = true;
+  $('choice-name').textContent = title;
+  $('choice-text').textContent = text;
+  const box = $('choice-actions');
+  box.innerHTML = '';
+  for (const c of choices) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = c.primary ? 'primary' : 'secondary';
+    b.textContent = c.label;
+    b.addEventListener('click', () => {
+      hideChoice();
+      c.onClick?.();
+    });
+    box.appendChild(b);
+  }
+  $('choice').classList.remove('hidden');
+  syncScrim();
+}
+
+export function hideChoice() {
+  game.choiceOpen = false;
+  $('choice').classList.add('hidden');
+  syncScrim();
+}
+
 // ---------- 商店 ----------
 export function openShop() {
   game.shopOpen = true;
@@ -109,7 +139,11 @@ function renderShop() {
     const buy = document.createElement('button');
     buy.type = 'button';
     buy.className = 'primary buy';
-    buy.textContent = '买一瓶';
+    // R-08：露珠不足或背包满时禁用按钮，并给出对应文案
+    const affordable = p.inv.coins >= def.price;
+    const full = countItem(p.inv, id) >= def.maxStack;
+    buy.textContent = !affordable ? '露珠不足' : full ? '已装满' : '买一瓶';
+    buy.disabled = !affordable || full;
     buy.addEventListener('click', () => {
       const res = buyItem(p.inv, id, 1);
       toast(res.message, res.ok ? 'good' : 'bad');
@@ -164,6 +198,15 @@ function renderInventory() {
     li.append(icon, info, use);
     list.appendChild(li);
   }
+  // R-08：背包 0 件时给一行空态提示
+  const totalItems = countItem(p.inv, HP_POTION) + countItem(p.inv, MP_POTION);
+  if (totalItems <= 0) {
+    const empty = document.createElement('p');
+    empty.className = 'inv-empty';
+    empty.textContent = '背包空空如也，去商店补给或打怪捡一些吧。';
+    list.appendChild(empty);
+  }
+
   const tip = document.createElement('p');
   tip.className = 'inv-tip';
   tip.textContent = '技能：翠风斩（12 MP·3秒冷却）｜晨露祝福（20 MP·10秒冷却，回复 40% 生命）';

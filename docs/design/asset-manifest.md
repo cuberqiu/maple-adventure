@@ -23,7 +23,7 @@
 | `assets/ui/btn_skill_spin.png` | `btn_skill_spin.png` | 106×112 | 翠风斩按钮 |
 | `assets/ui/btn_skill_shot.png` | `btn_skill_shot.png` | 112×102 | 晨露祝福按钮 |
 | `assets/sprites/fx/leaf_slash.png` | `leaf_slash.png` | 120×97 | 翠风斩风刃特效 |
-| `assets/sprites/fx/seed_bullet.png` | `seed_bullet.png` | 72×31 | 保留文件名（不再用于晨露祝福） |
+| `assets/sprites/fx/seed_bullet.png` | `seed_bullet.png` | 72×31 | 预留 / 未使用（已移出 `assets.js` 预加载，晨露祝福改走粒子） |
 | `assets/sprites/fx/fog_puff.png` | `fog_puff.png` | 96×75 | 磐苔巨像孢子特效 |
 
 > 稳定文件名约定：`linglan.png`、`linglan_wave.png`、`seed_bullet.png`、`boss/charge.png` 文件名保持不变，后续替换直接覆盖即可生效。
@@ -61,7 +61,7 @@
 | tiles/platform_wild.png | 480×96 | 单向平台，三切片，高 22 |
 | tiles/platform_cave.png | 480×78 | 单向平台，三切片，高 22 |
 
-地面实心填充色：town `#7A4A28`、wild `#5E6670`、cave `#3B2A5A`（条带下方延伸，带土截面 / 碎石）。
+地面实心填充色：town `#7A4A28`、wild `#6B4A28`、cave `#3B2A5A`（条带下方延伸，带土截面 / 碎石；林地 wild 为暖土截面，暗 `#4A2E18`、中 `#8A6238`、浅高光 `#C4A070`）。
 
 ## 装饰 displayH
 

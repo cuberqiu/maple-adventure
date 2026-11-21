@@ -41,6 +41,12 @@ html, body {
 
 button, summary { font-family: inherit; }
 
+/* 可点控件焦点环（R-09）：不只能靠颜色区分 */
+button:focus-visible, summary:focus-visible, .tbtn:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
 #app {
   position: relative;
   min-height: 100%;
@@ -170,6 +176,19 @@ button, summary { font-family: inherit; }
 .icon-btn.pause { background-image: url('assets/ui/btn_pause.png'); }
 .icon-btn.sound { background-image: url('assets/ui/btn_sound.png'); }
 .icon-btn.sound.muted { filter: grayscale(0.55) brightness(0.85); }
+
+/* ---------- 紧凑 HUD（窄舞台，R-03） ----------
+   竖屏舞台宽约 370px：收紧血条 / 徽章 / 地图名，静音钮只放暂停卡，
+   保证右上「露珠 + 背包 + 暂停」完整且 icon-btn 保持 44px（R-10）。 */
+body.hud-compact .hud-top { padding: 6px 8px 0; gap: 8px; }
+body.hud-compact .bars { width: min(120px, 30%); min-width: 96px; }
+body.hud-compact .lv-badge { width: 40px; height: 40px; font-size: 16px; }
+body.hud-compact .map-pill { font-size: 11px; padding: 3px 8px; max-width: 96px; }
+body.hud-compact .gold { font-size: 12px; padding: 1px 8px 1px 3px; border-width: 2px; }
+body.hud-compact .gold .coin-icon { width: 20px; height: 20px; }
+body.hud-compact .hud-buttons { gap: 5px; }
+body.hud-compact .icon-btn { width: 44px; height: 44px; background-size: 34px; }
+body.hud-compact .icon-btn.sound { display: none; }
 
 /* 快捷栏（右下）：翠风斩 / 晨露祝福 / 红药 / 蓝药 */
 .skills { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 8px; }
@@ -349,6 +368,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .price .coin-icon { width: 20px; height: 20px; }
 button.buy { padding: 6px 14px; font-size: 13px; }
 .inv-tip { font-size: 12px; color: var(--ink-soft); padding: 8px 0 0; }
+.inv-empty { font-size: 13px; color: var(--ink-soft); padding: 8px 0 0; text-align: center; }
 
 .pause-help { font-size: 13px; line-height: 1.9; }
 .pause-help p { margin: 4px 0; }
@@ -361,27 +381,12 @@ body.touch.playing #touch {
 }
 body.touch #foot { display: none; }
 
-.pad {
-  display: grid;
-  grid-template-columns: repeat(3, 56px);
-  grid-template-rows: repeat(3, 56px);
-  gap: 4px;
-}
-.pad .up { grid-column: 2; grid-row: 1; }
-.pad .left { grid-column: 1; grid-row: 2; }
-.pad .right { grid-column: 3; grid-row: 2; }
-.pad .down { grid-column: 2; grid-row: 3; }
-
-#touch .actions {
-  display: grid;
-  grid-template-columns: repeat(4, 56px);
-  grid-template-rows: repeat(2, 52px);
-  gap: 6px;
-  align-content: end;
-}
+.pad { display: grid; gap: 4px; }
+#touch .actions { display: grid; gap: 4px; align-content: end; }
 
 .tbtn {
-  height: 52px; border-radius: 14px; border: 3px solid var(--ink);
+  height: var(--tkey, 52px); width: var(--tkey, 52px); border-radius: 14px;
+  border: 3px solid var(--ink);
   background: var(--cream); color: var(--ink); font-weight: 800; font-size: 14px;
   box-shadow: 0 4px 0 rgba(74, 46, 31, 0.35);
   display: flex; align-items: center; justify-content: center;
@@ -397,13 +402,22 @@ body.touch #foot { display: none; }
 /* 触控可见时隐藏舞台内技能钮（P0-03 / P2-13：同一技能只有一颗可点钮） */
 body.touch.playing .skills { display: none; }
 
-/* 压缩触控（72–128）：键缩小到 46px */
-body.touch-compact.playing .pad { grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(3, 48px); }
-body.touch-compact.playing #touch .actions { grid-template-columns: repeat(4, 48px); grid-template-rows: repeat(2, 46px); }
-body.touch-compact.playing .tbtn { height: 46px; font-size: 13px; }
+/* 网格档（舒适 168px）：3×3 十字 + 3 列动作，竖屏 11 键都进视口（R-02） */
+body.touch-grid.playing .pad { grid-template-columns: repeat(3, var(--tkey)); grid-template-rows: repeat(3, var(--tkey)); }
+body.touch-grid.playing .pad .up { grid-column: 2; grid-row: 1; }
+body.touch-grid.playing .pad .left { grid-column: 1; grid-row: 2; }
+body.touch-grid.playing .pad .right { grid-column: 3; grid-row: 2; }
+body.touch-grid.playing .pad .down { grid-column: 2; grid-row: 3; }
+body.touch-grid.playing #touch .actions { grid-template-columns: repeat(3, var(--tkey)); grid-template-rows: repeat(3, var(--tkey)); }
 
-/* 紧急触控（56）：只保留十字 + 跳 + 攻击 + 互动 */
-body.touch-emergency.playing #touch .actions .tbtn.act:not(.big):not([aria-label="互动"]) { display: none; }
+/* 单行档（72px 压缩）：方向 ◀▲▼▶ + 单行动作条，不侵入舞台（R-01/R-06） */
+body.touch-row.playing .pad { grid-template-columns: repeat(4, var(--tkey)); grid-template-rows: var(--tkey); }
+body.touch-row.playing .pad .up { grid-column: 2; grid-row: 1; }
+body.touch-row.playing .pad .left { grid-column: 1; grid-row: 1; }
+body.touch-row.playing .pad .right { grid-column: 4; grid-row: 1; }
+body.touch-row.playing .pad .down { grid-column: 3; grid-row: 1; }
+body.touch-row.playing #touch .actions { grid-template-columns: repeat(7, var(--tkey)); grid-template-rows: var(--tkey); }
+body.touch-row.playing .tbtn { font-size: 13px; }
 
 /* ---------- 过场黑幕 ---------- */
 #fade { position: fixed; inset: 0; background: #14100c; opacity: 0; pointer-events: none; transition: opacity 0.18s; z-index: 80; }
@@ -412,6 +426,13 @@ body.touch-emergency.playing #touch .actions .tbtn.act:not(.big):not([aria-label
 @media (max-width: 720px) {
   #title-card .game-title { font-size: 36px; }
   .skill { width: 48px; height: 48px; }
-  .icon-btn { width: 40px; height: 40px; background-size: 30px; }
+  /* 触控设备上 icon-btn 保持 44px（R-10）；仅桌面窄窗收到 40px */
+  body:not(.touch) .icon-btn { width: 40px; height: 40px; background-size: 30px; }
   .bars { width: min(150px, 40%); }
+}
+
+/* 减动效（R-14）：CSS 侧减弱过渡与弹入动画；画布侧见 src/core/motion.js */
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+  .icon-btn, button.primary, button.secondary, .tbtn, .skill, #fade, #scrim { transition: none; }
 }

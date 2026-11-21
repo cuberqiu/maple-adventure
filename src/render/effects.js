@@ -46,12 +46,13 @@ export function drawCaveLight(ctx) {
   ctx.fillRect(-20, -20, VIEW_W + 40, VIEW_H + 40);
 }
 
-// Boss 条（屏幕空间，顶部居中）：名牌「磐苔巨像」在条上方
-export function drawBossBar(ctx) {
+// Boss 条（屏幕空间，顶部居中）：名牌「磐苔巨像」在条上方。
+// compact（窄横屏，舞台宽 < 560 或高 < 320）时缩短条宽，避开右上 HUD 三钮（R-04）。
+export function drawBossBar(ctx, compact = false) {
   const boss = game.monsters.find((m) => m.def.boss && m.hp > 0 && !m.dead);
   if (!boss) return;
 
-  const w = 220;
+  const w = compact ? 180 : 220;
   const h = 12;
   const x = (VIEW_W - w) / 2;
   const y = 48;
@@ -84,13 +85,13 @@ export function drawBossBar(ctx) {
     roundRect(ctx, x + 3, y + 3, Math.max(6, (w - 6) * ratio), h - 6, 3);
     ctx.fill();
   }
-  // 数字（奶油色 + ink 描边）
-  ctx.font = `bold 10px ${FONT}`;
+  // 数字（浅色 + 3px 墨描边，避免叠在 --boss 紫上偏弱）
+  ctx.font = `bold 11px ${FONT}`;
   ctx.lineJoin = 'round';
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(74,46,31,0.85)';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(74,46,31,1)';
   ctx.strokeText(`${Math.ceil(boss.hp)}`, cx, y + h / 2 + 0.5);
-  ctx.fillStyle = '#FFF6E3';
+  ctx.fillStyle = '#FFFFFF';
   ctx.fillText(`${Math.ceil(boss.hp)}`, cx, y + h / 2 + 0.5);
 
   ctx.textAlign = 'left';

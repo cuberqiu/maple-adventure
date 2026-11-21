@@ -16,7 +16,8 @@ function buildManifest() {
   group('boss', 'sprites/boss', ['idle', 'charge', 'fog', 'slam']);
   group('npc', 'sprites/npc', ['linglan', 'linglan_wave']);
   group('items', 'sprites/items', ['dew', 'potion_red', 'potion_blue']);
-  group('fx', 'sprites/fx', ['leaf_slash', 'seed_bullet', 'fog_puff', 'portal']);
+  // seed_bullet.png 为「预留/未使用」资源（晨露祝福走粒子），不参与预加载（R-12）。
+  group('fx', 'sprites/fx', ['leaf_slash', 'fog_puff', 'portal']);
 
   for (const theme of ['town', 'wild', 'cave']) {
     m[`bg/${theme}_far`] = `assets/bg/${theme}_far.jpg`;

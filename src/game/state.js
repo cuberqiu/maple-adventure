@@ -28,6 +28,7 @@ function freshState() {
     dialogue: null, // {speaker, lines, index, onEnd}
     shopOpen: false,
     invOpen: false,
+    choiceOpen: false, // 对话后的「看看货 / 下次再说」选择卡（R-07）
     victoryShown: false,
     levelUpOpen: false,
     bossJustDied: false,
@@ -92,10 +93,10 @@ function snapCamera() {
   centerCam();
 }
 
-// 是否有 UI 挡住 gameplay（对话 / 商店 / 背包 / 暂停 / 胜利结算 / 升级卡）
+// 是否有 UI 挡住 gameplay（对话 / 商店 / 背包 / 暂停 / 胜利结算 / 升级卡 / 选择卡）
 export function uiLocked() {
   return (
     game.paused || !!game.dialogue || game.shopOpen || game.invOpen ||
-    game.victoryShown || game.levelUpOpen
+    game.choiceOpen || game.victoryShown || game.levelUpOpen
   );
 }

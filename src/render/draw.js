@@ -2,6 +2,7 @@
 // 位图路线：地面 / 平台 / 装饰 / NPC / 传送门走贴图；绳索 / 尖晶石陷阱 / 告示 / 水晶为简单程序形状。
 import { game } from '../game/state.js';
 import { getImage } from '../core/assets.js';
+import { prefersReducedMotion } from '../core/motion.js';
 import {
   assetTheme, DECOR_ASSET, DECOR_H, GROUND_FILL,
   GROUND_STRIP_H, GROUND_OVERHANG, PLATFORM_H, PORTAL_H, LINGLAN_H,
@@ -69,16 +70,38 @@ function drawGround(ctx, g, aTheme) {
   ctx.fillRect(g.x, fillTop - 1, g.w, 2);
 
   // 土截面：顶部深色渐变 + 确定性碎石，打破平涂色带
+  // 林地（wild）改暖土截面（R-05）：暗 #4A2E18、中 #8A6238、浅高光 #C4A070；
+  // 小镇 / 洞窟维持原有冷碎石，避免误改正确配色。
+  const earth = aTheme === 'wild';
   const grad = ctx.createLinearGradient(0, fillTop, 0, fillTop + 16);
-  grad.addColorStop(0, 'rgba(0,0,0,0.20)');
+  grad.addColorStop(0, earth ? 'rgba(74,46,31,0.28)' : 'rgba(0,0,0,0.20)');
   grad.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = grad;
   ctx.fillRect(g.x, fillTop, g.w, 16);
 
-  ctx.fillStyle = 'rgba(0,0,0,0.12)';
-  for (let px = g.x; px < g.x + g.w; px += 40) {
-    ctx.fillRect(px + 8, fillTop + 18 + ((px * 13) % 12), 8, 5 + ((px * 7) % 6));
-    ctx.fillRect(px + 26, fillTop + 30 + ((px * 11) % 10), 6, 3);
+  if (earth) {
+    // 暖暗碎石
+    ctx.fillStyle = 'rgba(74,46,31,0.28)';
+    for (let px = g.x; px < g.x + g.w; px += 40) {
+      ctx.fillRect(px + 8, fillTop + 18 + ((px * 13) % 12), 8, 5 + ((px * 7) % 6));
+      ctx.fillRect(px + 26, fillTop + 30 + ((px * 11) % 10), 6, 3);
+    }
+    // 中层土块
+    ctx.fillStyle = '#8A6238';
+    for (let px = g.x; px < g.x + g.w; px += 64) {
+      ctx.fillRect(px + 30, fillTop + 16 + ((px * 5) % 10), 7, 4 + ((px * 3) % 5));
+    }
+    // 少量浅土高光
+    ctx.fillStyle = '#C4A070';
+    for (let px = g.x; px < g.x + g.w; px += 96) {
+      ctx.fillRect(px + 18, fillTop + 22 + ((px * 7) % 9), 4, 3);
+    }
+  } else {
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    for (let px = g.x; px < g.x + g.w; px += 40) {
+      ctx.fillRect(px + 8, fillTop + 18 + ((px * 13) % 12), 8, 5 + ((px * 7) % 6));
+      ctx.fillRect(px + 26, fillTop + 30 + ((px * 11) % 10), 6, 3);
+    }
   }
 }
 
@@ -187,7 +210,7 @@ function drawSign(ctx, s) {
 }
 
 function drawCrystal(ctx, c, frame) {
-  const pulse = 0.6 + 0.4 * Math.sin(frame * 0.05);
+  const pulse = prefersReducedMotion() ? 1 : 0.6 + 0.4 * Math.sin(frame * 0.05);
   ctx.save();
   ctx.globalAlpha = 0.25 + pulse * 0.2;
   ctx.fillStyle = '#8fe0ff';
@@ -231,8 +254,9 @@ function drawNpc(ctx, n, frame) {
 function drawPortal(ctx, p, frame) {
   const cx = p.x + p.w / 2;
   const bottom = p.y + p.h;
-  const sway = Math.sin(frame * 0.06) * 0.07;
-  const pulse = 1 + Math.sin(frame * 0.1) * 0.04;
+  const reduced = prefersReducedMotion();
+  const sway = reduced ? 0 : Math.sin(frame * 0.06) * 0.07;
+  const pulse = reduced ? 1 : 1 + Math.sin(frame * 0.1) * 0.04;
   if (drawSprite(ctx, 'fx/portal', cx, bottom, PORTAL_H, { rotate: sway, sx: pulse, sy: pulse })) {
     label(ctx, cx, bottom - PORTAL_H - 4, p.label);
   }

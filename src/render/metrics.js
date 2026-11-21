@@ -13,7 +13,7 @@ export const NEAR_CROP = 0.86;      // 近景裁掉自带地面
 export const PLATFORM_H = 22;       // 单向平台显示高度
 
 // 地面实心填充色（条带下方延伸）
-export const GROUND_FILL = { town: '#7A4A28', wild: '#5E6670', cave: '#3B2A5A' };
+export const GROUND_FILL = { town: '#7A4A28', wild: '#6B4A28', cave: '#3B2A5A' };
 
 // 主线地图 theme 用 'field'，位图主题 id 用 'wild'
 export function assetTheme(theme) {
