@@ -47,15 +47,24 @@ export function drawCaveLight(ctx) {
 }
 
 // Boss 条（屏幕空间，顶部居中）：名牌「磐苔巨像」在条上方。
-// compact（窄横屏，舞台宽 < 560 或高 < 320）时缩短条宽，避开右上 HUD 三钮（R-04）。
+// compact（舞台宽 < 560 或高 < 320，含 844×390 / 390×844）时：
+//   缩短条宽避开右上 HUD 三钮，并把名牌+血条整体下移到 HUD 行下方（逻辑 y 80）（R-04）。
+export const BOSS_BAR_H = 12;
+export const BOSS_BAR_Y = 48;
+export const BOSS_BAR_Y_COMPACT = 80;
+
+export function livingBoss() {
+  return game.monsters.find((m) => m.def.boss && m.hp > 0 && !m.dead) || null;
+}
+
 export function drawBossBar(ctx, compact = false) {
-  const boss = game.monsters.find((m) => m.def.boss && m.hp > 0 && !m.dead);
+  const boss = livingBoss();
   if (!boss) return;
 
   const w = compact ? 180 : 220;
-  const h = 12;
+  const h = BOSS_BAR_H;
   const x = (VIEW_W - w) / 2;
-  const y = 48;
+  const y = compact ? BOSS_BAR_Y_COMPACT : BOSS_BAR_Y;
   const cx = VIEW_W / 2;
   const ratio = Math.max(0, boss.hp / boss.maxHp);
 

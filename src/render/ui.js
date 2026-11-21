@@ -18,7 +18,7 @@ export function syncScrim() {
 }
 
 // ---------- 提示气泡 ----------
-export function toast(msg, type = 'info') {
+export function toast(msg, type = 'info', duration = 2100) {
   const box = $('toasts');
   const el = document.createElement('div');
   el.className = `toast ${type}`;
@@ -28,7 +28,7 @@ export function toast(msg, type = 'info') {
   setTimeout(() => {
     el.classList.add('out');
     setTimeout(() => el.remove(), 350);
-  }, 2100);
+  }, duration);
 }
 
 // ---------- 交互提示 ----------
@@ -174,6 +174,8 @@ function renderInventory() {
   for (const id of [HP_POTION, MP_POTION]) {
     const def = ITEM_DEFS[id];
     const n = countItem(p.inv, id);
+    // R-17：件数为 0 的物品行不渲染，只留空态句
+    if (n <= 0) continue;
     const li = document.createElement('li');
     const icon = document.createElement('span');
     icon.className = `item-icon ${def.kind}`;

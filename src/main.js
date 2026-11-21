@@ -19,7 +19,7 @@ import { rectsOverlap } from './logic/physics.js';
 import { drawBackground } from './render/background.js';
 import { drawMap } from './render/draw.js';
 import { drawPlayer, drawMonster, drawDrops, drawProjectiles } from './render/sprites.js';
-import { drawParticles, drawDmgNums, drawCaveLight, drawBossBar } from './render/effects.js';
+import { drawParticles, drawDmgNums, drawCaveLight, drawBossBar, livingBoss, BOSS_BAR_H, BOSS_BAR_Y, BOSS_BAR_Y_COMPACT } from './render/effects.js';
 import { showHud, updateHud } from './render/hud.js';
 import * as ui from './render/ui.js';
 import { setupTouch, detectTouch } from './render/touch.js';
@@ -29,6 +29,7 @@ const ctx = canvas.getContext('2d');
 let backing = 2;
 let autosaveTimer = 0;
 let assetsReady = false;
+let curStageH = 270;
 let curTouchH = 0;
 let bossCompact = false;
 
@@ -233,7 +234,7 @@ function startNewRun() {
   loadMap('town', 560, 560);
   game.greet = 480; // 开场引导约 8 秒，只在露水镇
   saveRun();
-  ui.toast('欢迎来到翠谷！先和镇上的铃兰聊聊吧。');
+  ui.toast('欢迎来到翠谷！先和镇上的铃兰聊聊吧。', 'info', 1200);
 }
 
 function startRun(run) {
@@ -246,7 +247,7 @@ function startRun(run) {
   game.player = p;
   enterPlay();
   loadMap(run.mapId, run.x, run.y);
-  ui.toast(`欢迎回来，Lv.${p.stats.level} 的冒险者！`);
+  ui.toast(`欢迎回来，Lv.${p.stats.level} 的冒险者！`, 'info', 1200);
 }
 
 function enterPlay() {
@@ -494,9 +495,26 @@ function render() {
 
   // Boss 条（屏幕空间，顶部居中）
   drawBossBar(ctx, bossCompact);
+  // R-16：有 Boss 条时把 toast 放到条下方，避免挡住名牌和数字
+  syncBossToasts(bossCompact);
 
   updateHud();
   ui.syncScrim();
+}
+
+
+function syncBossToasts(compact) {
+  const box = $('toasts');
+  if (!box) return;
+  const hasBoss = !!livingBoss();
+  document.body.classList.toggle('boss-bar', hasBoss);
+  if (!hasBoss) {
+    box.style.top = '';
+    return;
+  }
+  const scale = curStageH / VIEW_H;
+  const barBottom = (compact ? BOSS_BAR_Y_COMPACT : BOSS_BAR_Y) + BOSS_BAR_H;
+  box.style.top = `${Math.round(barBottom * scale + 8)}px`;
 }
 
 // ===================== 响应式（设计系统 §9） =====================
@@ -505,6 +523,7 @@ function resize() {
   document.body.classList.toggle('touch', hasTouch);
   const layout = computeLayout(window.innerWidth, window.innerHeight, hasTouch);
   curTouchH = layout.touchH;
+  curStageH = layout.stageH;
 
   const stage = $('stage');
   stage.style.width = `${layout.stageW}px`;
